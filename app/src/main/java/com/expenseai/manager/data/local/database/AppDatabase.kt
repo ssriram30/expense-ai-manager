@@ -14,7 +14,7 @@ import com.expenseai.manager.data.local.entity.*
         RecurringExpenseEntity::class
     ],
     version = 1,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
