@@ -1,14 +1,12 @@
 package com.expenseai.manager.util
 
 import android.content.Context
-import android.graphics.pdf.PdfDocument
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
+import android.graphics.pdf.PdfDocument
 import com.expenseai.manager.domain.model.Expense
 import com.expenseai.manager.domain.model.Income
-import com.opencsv.CSVWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileWriter
@@ -28,29 +26,26 @@ class ExportManager @Inject constructor(
         return dir
     }
 
+    private fun escapeCsv(value: String): String {
+        val needsQuote = value.contains(',') || value.contains('"') || value.contains('\n')
+        return if (needsQuote) "\"${value.replace("\"", "\"\"")}\"" else value
+    }
+
+    private fun csvRow(vararg values: String): String =
+        values.joinToString(",") { escapeCsv(it) }
+
     fun exportExpensesCSV(expenses: List<Expense>, filename: String = "expenses_${Date().time}.csv"): File {
         val file = File(getExportDir(), filename)
         try {
-            CSVWriter(FileWriter(file)).use { writer ->
-                writer.writeNext(arrayOf(
-                    "ID", "Title", "Description", "Amount", "Currency", "Category",
-                    "Merchant", "Date", "Payment Method", "Notes", "Tags", "Tax", "Type"
-                ))
-                expenses.forEach { expense ->
-                    writer.writeNext(arrayOf(
-                        expense.id.toString(),
-                        expense.title,
-                        expense.description,
-                        expense.amount.toString(),
-                        expense.currency,
-                        expense.category.displayName,
-                        expense.merchant,
-                        DateUtils.formatISO(expense.date),
-                        expense.paymentMethod.displayName,
-                        expense.notes,
-                        expense.tags.joinToString(";"),
-                        expense.taxAmount.toString(),
-                        expense.type.name
+            FileWriter(file).use { writer ->
+                writer.appendLine(csvRow("ID", "Title", "Description", "Amount", "Currency",
+                    "Category", "Merchant", "Date", "Payment Method", "Notes", "Tags", "Tax", "Type"))
+                expenses.forEach { e ->
+                    writer.appendLine(csvRow(
+                        e.id.toString(), e.title, e.description, e.amount.toString(),
+                        e.currency, e.category.displayName, e.merchant,
+                        DateUtils.formatISO(e.date), e.paymentMethod.displayName,
+                        e.notes, e.tags.joinToString(";"), e.taxAmount.toString(), e.type.name
                     ))
                 }
             }
@@ -63,18 +58,13 @@ class ExportManager @Inject constructor(
     fun exportIncomeCSV(incomes: List<Income>, filename: String = "income_${Date().time}.csv"): File {
         val file = File(getExportDir(), filename)
         try {
-            CSVWriter(FileWriter(file)).use { writer ->
-                writer.writeNext(arrayOf("ID", "Title", "Amount", "Currency", "Source", "Date", "Notes", "Tags"))
-                incomes.forEach { income ->
-                    writer.writeNext(arrayOf(
-                        income.id.toString(),
-                        income.title,
-                        income.amount.toString(),
-                        income.currency,
-                        income.source.displayName,
-                        DateUtils.formatISO(income.date),
-                        income.notes,
-                        income.tags.joinToString(";")
+            FileWriter(file).use { writer ->
+                writer.appendLine(csvRow("ID", "Title", "Amount", "Currency", "Source", "Date", "Notes", "Tags"))
+                incomes.forEach { i ->
+                    writer.appendLine(csvRow(
+                        i.id.toString(), i.title, i.amount.toString(), i.currency,
+                        i.source.displayName, DateUtils.formatISO(i.date),
+                        i.notes, i.tags.joinToString(";")
                     ))
                 }
             }
@@ -96,15 +86,12 @@ class ExportManager @Inject constructor(
         val paint = Paint().apply { textSize = 12f; color = Color.BLACK }
         val titlePaint = Paint().apply { textSize = 18f; color = Color.BLACK; isFakeBoldText = true }
         val headerPaint = Paint().apply { textSize = 11f; color = Color.WHITE; isFakeBoldText = true }
-        val subHeaderPaint = Paint().apply { textSize = 10f; color = Color.DKGRAY }
+        val subPaint = Paint().apply { textSize = 10f; color = Color.DKGRAY }
         val bgPaint = Paint().apply { color = Color.rgb(26, 35, 126) }
         val rowBgPaint = Paint().apply { color = Color.rgb(240, 240, 250) }
 
-        val pageWidth = 595
-        val pageHeight = 842
-        val margin = 40f
-        val rowHeight = 30f
-        val lineHeight = 18f
+        val pageWidth = 595; val pageHeight = 842
+        val margin = 40f; val rowHeight = 30f
 
         var pageNum = 1
         var currentY = margin + 60f
@@ -121,17 +108,13 @@ class ExportManager @Inject constructor(
             canvas = page.canvas
         }
 
-        fun drawHeader() {
-            canvas.drawRect(0f, 0f, pageWidth.toFloat(), 70f, bgPaint)
-            canvas.drawText(title, margin, 30f, titlePaint.apply { color = Color.WHITE })
-            canvas.drawText("Generated: ${DateUtils.formatFull(Date())}", margin, 55f, subHeaderPaint.apply { color = Color.LTGRAY })
-        }
-
-        drawHeader()
+        canvas.drawRect(0f, 0f, pageWidth.toFloat(), 70f, bgPaint)
+        canvas.drawText(title, margin, 30f, titlePaint.apply { color = Color.WHITE })
+        canvas.drawText("Generated: ${DateUtils.formatFull(Date())}", margin, 55f, subPaint.apply { color = Color.LTGRAY })
         currentY = 90f
 
         val total = expenses.sumOf { it.amount }
-        canvas.drawText("Total: ${CurrencyUtils.format(total, currency)}  |  Transactions: ${expenses.size}", margin, currentY, subHeaderPaint.apply { color = Color.DKGRAY })
+        canvas.drawText("Total: ${CurrencyUtils.format(total, currency)}  |  Transactions: ${expenses.size}", margin, currentY, subPaint)
         currentY += 25f
 
         canvas.drawRect(margin, currentY, pageWidth - margin, currentY + rowHeight, bgPaint)
@@ -144,14 +127,9 @@ class ExportManager @Inject constructor(
 
         expenses.forEachIndexed { index, expense ->
             if (currentY + rowHeight > pageHeight - margin) newPage()
-
-            if (index % 2 == 0) {
-                canvas.drawRect(margin, currentY - 5f, pageWidth - margin, currentY + rowHeight - 5f, rowBgPaint)
-            }
-
+            if (index % 2 == 0) canvas.drawRect(margin, currentY - 5f, pageWidth - margin, currentY + rowHeight - 5f, rowBgPaint)
             val rowY = currentY + 15f
-            paint.textSize = 10f
-            paint.color = Color.BLACK
+            paint.textSize = 10f; paint.color = Color.BLACK
             canvas.drawText(DateUtils.formatDisplay(expense.date), margin + 5, rowY, paint)
             canvas.drawText(expense.title.take(20), margin + 75, rowY, paint)
             canvas.drawText(expense.category.displayName.take(15), margin + 220, rowY, paint)

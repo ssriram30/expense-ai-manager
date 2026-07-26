@@ -60,7 +60,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions { jvmTarget = "17" }
+    kotlinOptions {
+        jvmTarget = "17"
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=com.google.accompanist.permissions.ExperimentalPermissionsApi",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+            "-opt-in=androidx.compose.animation.ExperimentalAnimationApi"
+        )
+    }
 
     buildFeatures {
         compose = true
@@ -141,12 +149,6 @@ dependencies {
 
     // Splash Screen
     implementation(libs.androidx.splashscreen)
-
-    // Security
-    implementation(libs.androidx.security.crypto)
-
-    // CSV Export
-    implementation(libs.opencsv)
 
     // Testing
     testImplementation(libs.junit)
