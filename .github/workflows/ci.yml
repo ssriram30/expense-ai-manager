@@ -39,13 +39,18 @@ jobs:
         if: failure()
         run: |
           if [ -f /tmp/build-debug.log ]; then
-            echo "### Build Errors" >> $GITHUB_STEP_SUMMARY
+            echo "### Full Build Output (last 200 lines)" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            grep -E "(error:|Error |FAILED|Exception|Unresolved reference|cannot find|does not exist)" /tmp/build-debug.log | grep -v "Download\|Deprecated\|Warning\|warning" | tail -60 >> $GITHUB_STEP_SUMMARY || true
+            tail -200 /tmp/build-debug.log >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            # Also emit as annotations
-            grep -E "^.*error:.*$" /tmp/build-debug.log | tail -20 | while IFS= read -r line; do
-              echo "::error::$(echo "$line" | cut -c1-200)"
+            # Emit the key failure section as annotations
+            FAIL_SECTION=$(grep -A 30 "FAILURE: Build failed" /tmp/build-debug.log | head -35)
+            if [ -n "$FAIL_SECTION" ]; then
+              echo "::error::BUILD FAILURE: $(echo "$FAIL_SECTION" | tr '\n' ' ' | cut -c1-500)"
+            fi
+            # Also emit any lines with error/exception keywords
+            grep -iE "(error:|exception:|FAILED|What went wrong)" /tmp/build-debug.log | tail -30 | while IFS= read -r line; do
+              echo "::error::$(echo "$line" | cut -c1-250)"
             done || true
           fi
 
