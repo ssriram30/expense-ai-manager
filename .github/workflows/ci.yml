@@ -28,34 +28,49 @@ jobs:
         with:
           gradle-version: '8.6'
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Run unit tests
-        run: gradle test --no-daemon --stacktrace
+        run: ./gradlew test --no-daemon --stacktrace
         continue-on-error: true
 
       - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-debug.log; exit ${PIPESTATUS[0]}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-debug.log; exit ${PIPESTATUS[0]}
 
       - name: Report Build Errors
         if: failure()
         run: |
           if [ -f /tmp/build-debug.log ]; then
-            echo "### Full Build Output (last 200 lines)" >> $GITHUB_STEP_SUMMARY
+            echo "### Kotlin Compiler Errors" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            tail -200 /tmp/build-debug.log >> $GITHUB_STEP_SUMMARY
+            grep -E "^e: " /tmp/build-debug.log | head -50 >> $GITHUB_STEP_SUMMARY || true
             echo '```' >> $GITHUB_STEP_SUMMARY
+
+            echo "### Full Build Output (last 500 lines)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -500 /tmp/build-debug.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+
+            # Emit Kotlin e: lines as annotations
+            grep -E "^e: " /tmp/build-debug.log | head -30 | while IFS= read -r line; do
+              echo "::error::$(echo "$line" | cut -c1-250)"
+            done || true
+
             # Emit the key failure section as annotations
             FAIL_SECTION=$(grep -A 30 "FAILURE: Build failed" /tmp/build-debug.log | head -35)
             if [ -n "$FAIL_SECTION" ]; then
               echo "::error::BUILD FAILURE: $(echo "$FAIL_SECTION" | tr '\n' ' ' | cut -c1-500)"
             fi
+
             # Also emit any lines with error/exception keywords
             grep -iE "(error:|exception:|FAILED|What went wrong)" /tmp/build-debug.log | tail -30 | while IFS= read -r line; do
               echo "::error::$(echo "$line" | cut -c1-250)"
             done || true
           fi
 
-      - name: Upload Build Log (on failure)
-        if: failure()
+      - name: Upload Build Log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
@@ -63,6 +78,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ExpenseAIManager-Debug-APK
@@ -84,7 +100,7 @@ jobs:
 
       - name: Build Release APK
         if: env.KEYSTORE_AVAILABLE == 'true'
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
         env:
           KEYSTORE_FILE: keystore/release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}

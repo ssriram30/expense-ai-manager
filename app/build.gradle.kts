@@ -77,8 +77,20 @@ android {
             excludes += "META-INF/LICENSE.txt"
             excludes += "META-INF/NOTICE"
             excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/*.kotlin_module"
+            excludes += "META-INF/MANIFEST.MF"
         }
     }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+        force("org.jetbrains.kotlin:kotlin-stdlib-common:1.9.22")
+    }
+    exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
+    exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
 }
 
 dependencies {
