@@ -1,0 +1,22 @@
+-keep class com.expenseai.manager.data.** { *; }
+-keep class com.expenseai.manager.domain.** { *; }
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+-keep class com.google.gson.** { *; }
+-dontwarn com.google.gson.**
+-keep class retrofit2.** { *; }
+-dontwarn retrofit2.**
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**
+-keep class androidx.room.** { *; }
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Database class * { *; }
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao interface * { *; }
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+-keep class com.opencsv.** { *; }
+-dontwarn com.opencsv.**
+-keep class org.apache.commons.** { *; }
+-dontwarn org.apache.commons.**
