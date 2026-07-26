@@ -23,14 +23,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Downloads Gradle 8.6 directly — no wrapper JAR needed in the repo
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.6'
-
-      - name: Make gradlew executable
-        run: chmod +x gradlew || true
 
       - name: Run unit tests
         run: gradle test --no-daemon --stacktrace
@@ -39,56 +35,61 @@ jobs:
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Upload Debug APK as artifact
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: ExpenseAIManager-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 90
 
-      # ── Signed Release APK (only if keystore secrets are set) ─────────────
-      - name: Decode Keystore (if available)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      # ── Signed Release APK (only when keystore secret is configured) ───────
+      - name: Decode Keystore
         run: |
-          mkdir -p app/keystore
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore/release.keystore
+          if [ -n "$KEYSTORE_B64" ]; then
+            mkdir -p app/keystore
+            echo "$KEYSTORE_B64" | base64 -d > app/keystore/release.keystore
+            echo "KEYSTORE_AVAILABLE=true" >> $GITHUB_ENV
+          else
+            echo "KEYSTORE_AVAILABLE=false" >> $GITHUB_ENV
+          fi
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build Release APK
+        if: env.KEYSTORE_AVAILABLE == 'true'
         run: gradle assembleRelease --no-daemon --stacktrace
         env:
           KEYSTORE_FILE: keystore/release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || '' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS || '' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || '' }}
-        continue-on-error: true
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload Release APK as artifact
+      - name: Upload Release APK
+        if: env.KEYSTORE_AVAILABLE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ExpenseAIManager-Release-APK
           path: app/build/outputs/apk/release/app-release*.apk
           retention-days: 90
-        continue-on-error: true
 
-      # ── Create GitHub Release on version tags ──────────────────────────────
+      # ── GitHub Release on version tags ─────────────────────────────────────
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           name: "Expense AI Manager ${{ github.ref_name }}"
           body: |
-            ## 💰 Expense AI Manager ${{ github.ref_name }}
+            ## Expense AI Manager ${{ github.ref_name }}
 
-            ### ⬇️ How to install on Android
+            ### How to install on Android
             1. Download **app-debug.apk** below
             2. Copy it to your Android phone
-            3. On your phone: Settings → Security → Enable **"Install Unknown Apps"**
+            3. Settings → Security → Enable "Install Unknown Apps"
             4. Open the APK file to install
 
-            **Requires Android 8.0 or higher**
+            Requires Android 8.0 (API 26) or higher
           files: |
             app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/app-release*.apk
           draft: false
           prerelease: false
         env:
